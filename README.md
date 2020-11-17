@@ -35,7 +35,7 @@ adb shell getprop ro.product.cpu.abi
 注入时步骤为:
 cd Android
 cd jni
-.\artinjector.bat -i ..\libs\arm64-v8a(or)armeabi-v7a(请根据当前手机cpu类型选择版本) -p <package_name>(注入的应用包名)
+.\artinjector.bat -i ..\libs\arm64-v8a(or)armeabi-v7a(请根据当前手机cpu类型选择版本)\libumemperf.so -p <package_name>(注入的应用包名)
 ```
 
 ```bash
@@ -46,4 +46,16 @@ mkdir build         创建临时的构建文件夹（随便什么名字）
 cd build
 cmake ..               (cmake + CMakeLists.txt所在目录，生成make file，windows下是生成vs工程）
 使用vs打开build下的 ALL_BUILD.vcxproj 进行编译
+```
+```bash
+memory_report_decode为数据解析软件
+编译软件步骤为：
+cd memory_report_decode
+mkdir build         创建临时的构建文件夹（随便什么名字）
+cd build
+cmake ..               (cmake + CMakeLists.txt所在目录，生成make file，windows下是生成vs工程）
+使用vs打开build下的 ALL_BUILD.vcxproj 进行编译
+```
+```bash
+全套已编译的包在release目录下，可用简易socket_client进行测试
 ```

@@ -9,7 +9,7 @@ enum UMPMessageType {
     CAPTURE_SNAPSHOT = 0, 
 };
 
-int umpServerStart();
+int umpServerStart(int port);
 bool umpServerStarted();
 void umpSend(int i);
 void umpRecv(void (*recvCallback)(unsigned int, const char*, unsigned int));

@@ -6,7 +6,6 @@
 #include <thread>
 #include <vector>
 #include <sstream>
-#include <fstream>
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,18 +27,175 @@ extern "C" {
 #include <pthread.h>
 #include <sys/un.h>
 #include <sys/time.h>
-#include <sys/time.h>
 #include "umputils.h"
 
-void umpServerLoop();
+struct umpSendCache {
+    std::uint32_t size;
+    const char* data;
+};
 
-int umpServerStart() {
-    umpServerLoop();
+std::mutex sendCacheMutex_;
+int flag = 0;
+void (*recvCallback_)(unsigned int, const char*, unsigned int);
+
+char* buffer_ = nullptr;
+std::atomic<bool> serverRunning_ {true};
+std::atomic<bool> hasClient_ {false};
+std::thread socketThread_;
+bool started_ = false;
+std::string name;
+bool umpServerStarted() {
+    return started_;
+}
+
+void umpSend(int i) {
+  /*
+    UMPLOGI("%d",i);
+    UMPLOGI("-------------f l a g");
+    flag = 1;
+    */
+   UMPLOGI("%d",i);
+   flag = 1 ;
+   std::lock_guard<std::mutex> lock(sendCacheMutex_);
+   if(flag ==1 ){
+     while (true) {
+            {
+                std::lock_guard<std::mutex> lock(sendCacheMutex_);
+                if (flag == 0)
+                    break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        }
+   } 
+}
+
+void umpRecv(void (*recvCallback)(unsigned int, const char*, unsigned int)) {
+    UMPLOGI("begin start1");
+    recvCallback_ = recvCallback;
+}
+
+void* umpServerLoop(void* args);
+
+int umpServerStart(int port = 8000) {
+    // UMPLOGI("%d",port);
+    // if (started_)
+    //     return 0;
+    // // allocate buffer
+    // buffer_ = (char*)malloc(BUFSIZ);
+    // memset(buffer_, 0, BUFSIZ);
+    // // setup server addr
+
+    // // struct sockaddr_in serverAddr;
+    // // memset(&serverAddr, 0, sizeof(serverAddr));
+    // // serverAddr.sin_family = AF_INET;
+    // // serverAddr.sin_addr.s_addr = INADDR_ANY;
+    // // serverAddr.sin_port = htons(port);
+    // // create socket
+    // const char* MY_SOCK_PATH = "memoryTptServer";
+    // struct sockaddr_un serverAddr;
+    // memset(&serverAddr, 0, sizeof(serverAddr));
+    // serverAddr.sun_family = AF_UNIX;
+    // strncpy(&serverAddr.sun_path[1], MY_SOCK_PATH, strlen(MY_SOCK_PATH));
+    
+
+    // int sock = socket(AF_UNIX, SOCK_STREAM, 0);
+    // if (sock < 0) {
+    //     UMPLOGI("start.socket %i", sock);
+    //     return -1;
+    // }
+    // // bind address
+    // int ecode = bind(sock, (struct sockaddr *)&serverAddr, sizeof(sa_family_t) + 1 + strlen(MY_SOCK_PATH));
+    // if (ecode < 0) {
+    //     UMPLOGI("start.bind %i", ecode);
+    //     return -1;
+    // }
+    // // set max send buffer
+    // int sendbuff = 327675;
+    // ecode = setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &sendbuff, sizeof(sendbuff));
+    // if (ecode < 0) {
+    //     UMPLOGI("start.setsockopt %i", ecode);
+    //     return -1;
+    // }
+    // // listen for incomming connections
+    // ecode = listen(sock, 2);
+    // if (ecode < 0) {
+    //     UMPLOGI("start.listen %i", ecode);
+    //     return -1;
+    // }
+    // started_ = true;
+    // serverRunning_ = true;
+    // hasClient_ = false;
+    // socketThread_ = std::thread(umpServerLoop, sock);
+    /* 准备这个简单服务器返回的信息 */
+    UMPLOGI("%d",port);
+    pthread_t tids[1];
+    int ret = pthread_create(&tids[0], NULL, umpServerLoop, NULL);
+    UMPLOGI("%d",ret);
+    UMPLOGI("tpmm::server::heart sever begin!");
     return 0;
 }
 
-void umpServerLoop() {
-  const char* MY_SOCK_PATH = "ioTptServer";
+void umpServerShutdown() {
+    if (!started_)
+        return;
+    serverRunning_ = false;
+    hasClient_ = false;
+    socketThread_.join();
+    delete[] buffer_;
+    buffer_ = nullptr;
+    started_ = false;
+}
+
+void* umpServerLoop(void* args) {
+    // struct timeval time;
+    // time.tv_usec = 33;
+    // fd_set fds;
+    // int clientSock = -1;
+    // while (serverRunning_) {
+    //     if (!serverRunning_)
+    //         break;
+    //     if (!hasClient_) { // handle new connection
+    //         FD_ZERO(&fds);
+    //         FD_SET(sock, &fds);
+    //         if (select(sock + 1, &fds, NULL, NULL, &time) < 1)
+    //             continue;
+    //         if (FD_ISSET(sock, &fds)) {
+    //             clientSock = accept(sock, NULL, NULL);
+    //             if (clientSock >= 0) {
+    //                 hasClient_ = true;
+    //             }
+    //         }
+    //     } else {
+    //         // check for client connectivity
+    //         FD_ZERO(&fds);
+    //         FD_SET(clientSock, &fds);
+    //         if (select(clientSock + 1, &fds, NULL, NULL, &time) > 0 && FD_ISSET(clientSock, &fds)) {
+    //             int length = recv(clientSock, buffer_, BUFSIZ, 0);
+    //             if (length <= 0) {
+    //                 hasClient_ = false;
+    //                 continue;
+    //             } else {
+    //                 if (length > 0) {
+    //                     std::uint32_t type = ntohl(*reinterpret_cast<std::uint32_t*>(buffer_));
+    //                     recvCallback_(type, buffer_ + 4, static_cast<std::uint32_t>(length - 4));
+    //                 }
+    //             }
+    //         }
+    //         std::lock_guard<std::mutex> lock(sendCacheMutex_);
+    //         if (sendCache_.size > 0) {
+    //             send(clientSock, &sendCache_.size, 4, 0); // send net buffer size
+    //             send(clientSock, sendCache_.data, sendCache_.size, 0); // then send data
+    //             // UMPLOGI("sending: %i, %i", sendCache_.compressedSize, sendCache_.size);
+    //             sendCache_.size = 0;
+    //         }
+    //     }
+    // }
+    // close(sock);
+    // if (hasClient_)
+    //     close(clientSock);
+    buffer_ = (char*)malloc(BUFSIZ);
+    args = NULL;
+    const char* MY_SOCK_PATH = "memorySnapshotTptServer";
 
   //宏定义
   //最大连接数
@@ -121,150 +277,44 @@ void umpServerLoop() {
         write(new_fd, &len, sizeof(len));
         write(new_fd, &page, sizeof(page));
       }
-      else if(strcmp(ch,"begin")==0) {
-        int q = getpid();
-        UMPLOGE("pid=%d",q);
-        std::string pid = std::to_string(q);
-        int read = 0;
-        int write = 0;
-        int readSpeed = 0;
-        int writeSpeed = 0;
-        std::string cmd;
-        size_t i = 0;
-        cmd+="cat /proc/";
-        cmd+=pid.c_str();
-        cmd+="/io";
-        std::ofstream f("/sdcard/iodata.raw",std::ios::out);
+      else if(strcmp(ch,"begin")==0){
+        int i=1;
+        
+        for(i=1;i<6555555;i++){
+            std::stringstream ssTemp;  
+            ssTemp<<i;  
+            std::string number=ssTemp.str(); 
+            name = "/sdcard/"+number+".rawsnapshot";
+            if(access( name.c_str(), F_OK ) == -1){
+                break;
+            }
+        }
+        UMPLOGI("qqqqqqqqqqqqqq %d",flag);
+        std::uint32_t type = ntohl(*reinterpret_cast<std::uint32_t*>(buffer_));
+        recvCallback_(type, buffer_ + 4, static_cast<std::uint32_t>(4));
+        UMPLOGI("ppppppppppp %d",flag);
+        int p=0;
+        std::lock_guard<std::mutex> lock(sendCacheMutex_);
         while(1){
-            if(read == 0 && write ==0){
-              char buf[1024];
-                FILE * p_file = NULL;
-                UMPLOGI("%s", cmd.c_str()); 
-                p_file = popen(cmd.c_str(), "r");
-                if (!p_file) {  
-                UMPLOGI( "Erro to popen");  
-              }  
-              std::string readstring="";
-              std::string writestring="";
-              int flag=0;
-              while (fgets(buf, 1024, p_file) != NULL) {  
-                UMPLOGI("++%s", buf);
-                std::string buff;
-                buff+=buf;
-                UMPLOGE("BUFF:%s",buff.c_str());
-                if(buff.find("read_bytes:")!=buff.npos&&flag==0)
-                {
-                  readstring += buff.c_str();
-                  flag=1;
-                }
-                else if(buff.find("write_bytes:")!=buff.npos){
-                  writestring += buff.c_str();
-                }
-                buff = "";
-              }  
-              UMPLOGE("er %s",readstring.c_str());
-              UMPLOGE("ew %s",writestring.c_str());
-              pclose(p_file);
-              int readIndex = readstring.find_first_of("read_bytes:")+12;
-              int writeIndex = writestring.find_first_of("write_bytes:")+13;
-              std::string tmp;
-              std::stringstream ssTemp;
-              for(i=readIndex;i<readstring.length();i++){
-                if(readstring[i]!='\0'){
-                  tmp+=readstring[i];
-                }else{
-                  break;
-                }
-              }
-              ssTemp<<tmp;  
-              ssTemp>>read;
-              ssTemp.clear();
-              tmp = "";
-              for(i=writeIndex;i<writestring.length();i++){
-                if(writestring[i]!='\n'){
-                  tmp+=writestring[i];
-                }else{
-                  break;
-                }
-              }
-              ssTemp<<tmp;  
-              ssTemp>>write;
-              tmp = "";
-              ssTemp.clear();
-              UMPLOGE("r%d-------w%d--------rs%d--------ws%d",read,write,readSpeed,writeSpeed);
-              flag=0;
-            }
-            else{
-                char buf[1024];
-                FILE * p_file = NULL;
-                p_file = popen(cmd.c_str(), "r");
-                UMPLOGE("%s",cmd.c_str());  
-                if (!p_file) {  
-                UMPLOGI( "Erro to popen");  
-              }  
-  
-              std::string readstring="";
-              std::string writestring="";
-              int flag=0;
-              while (fgets(buf, 1024, p_file) != NULL) {  
-                UMPLOGI("++%s", buf);
-                std::string buff;
-                buff+=buf;
-                if(buff.find("read_bytes:")!=buff.npos&&flag==0)
-                {
-                  readstring += buff.c_str();
-                  flag=1;
-                }
-                else if(buff.find("write_bytes:")!=buff.npos){
-                  writestring += buff.c_str();
-                }
-                buff = "";
-              }  
-              pclose(p_file);
-              UMPLOGE("tr %s",readstring.c_str());
-              UMPLOGE("tw %s",writestring.c_str());
-              int readIndex = readstring.find_first_of("read_bytes:")+12;
-              int writeIndex = writestring.find_first_of("write_bytes:")+13;
-              std::string tmp;
-              std::stringstream ssTemp;
-              for(i=readIndex;i < readstring.length();i++){
-                if(readstring[i]!='\0'){
-                  tmp+=readstring[i];
-                }else{
-                  break;
-                }
-              }
-              ssTemp<<tmp;
-              int tmp2;
-              ssTemp>>tmp2;
-              readSpeed = tmp2 - read;
-              read=tmp2;
-              tmp2=0;
-              ssTemp.clear();
-              tmp = "";
-              for(i=writeIndex;i<writestring.length();i++){
-                if(writestring[i]!='\0'){
-                  tmp+=writestring[i];
-                }else{
-                  break;
-                }
-              }
-              ssTemp<<tmp;
-              ssTemp>>tmp2;
-              writeSpeed = tmp2 - write;
-              write=tmp2;
-              tmp2=0;  
-              tmp = "";
-              ssTemp.clear();
-              UMPLOGE("r%d-------w%d--------rs%d--------ws%d",read,write,readSpeed,writeSpeed);
-              flag =0;
-              struct timeval tv;
-              gettimeofday(&tv, NULL);
-              long time;
-              time = (long)((long)tv.tv_sec * 1000 * 1000 + tv.tv_usec);
-              f<<"time:"<<time<<" readSpeed:"<<readSpeed<<" writeSpeed:"<<writeSpeed<<std::endl;
-            }
+          if(p<10){
+            p++;
             sleep(1);
+            UMPLOGI("p: %d",p);
+            if (flag) {
+                UMPLOGI("+++++++++++++flag %d",flag);
+                char page[100];
+                name.copy(page,name.size(),0);
+                *(page+name.size())='\0';
+                int len=strlen(page)+1;
+                write(new_fd, &len, sizeof(len));
+                write(new_fd, &page, len); 
+                flag=0;  
+                UMPLOGI("------------flag %d",flag);  
+                break; 
+          } 
+          }
+          else break;
+            
         }
       }
       
