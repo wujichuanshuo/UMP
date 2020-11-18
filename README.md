@@ -55,7 +55,11 @@ mkdir build         创建临时的构建文件夹（随便什么名字）
 cd build
 cmake ..               (cmake + CMakeLists.txt所在目录，生成make file，windows下是生成vs工程）
 使用vs打开build下的 ALL_BUILD.vcxproj 进行编译
+使用方法：
+第一个参数为存储.rawsnapshot的地址，第二哥参数为输出地址如1.json
+如.\memory_report_decoder.exe C:\Users\Administrator\1.rawsnapshot C:\Users\Administrator\Desktop\123\1.json
 ```
 ```bash
 全套已编译的包在release目录下，可用简易socket_client进行测试
+生成出的rawsnapshot再通过memory_report_decoder进行解析
 ```
